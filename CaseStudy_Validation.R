@@ -68,10 +68,10 @@ length(unique(Atl24$Date))
 
 # Export file with needed AOD values for matching against gridded AOD values on cluster (simple ddply by date, merge on input fid to gridded cluster files (10 km and 3 km) and save to table in same manner as loop above)
 write.csv(Atl24, "H:/Rotation_Yang/CaseStudy/PM_DateInputFID.csv")
-# Above file was processed on cluster using
+# Above file was processed on cluster using the script CaseStudy_AggAOD.R on 09/12/2016
 
 # Get AOD values by product (3 + 1,2,3) for each CMAQ cell and day with a PM value
-
+read.csv("H:/Rotation_Yang/CaseStudy/PM_AOD.csv")
 
 # Run model for each AOD type, QAC 1+2+3, and QAC 3 only
 
