@@ -71,7 +71,61 @@ write.csv(Atl24, "H:/Rotation_Yang/CaseStudy/PM_DateInputFID.csv")
 # Above file was processed on cluster using the script CaseStudy_AggAOD.R on 09/12/2016
 
 # Get AOD values by product (3 + 1,2,3) for each CMAQ cell and day with a PM value
-read.csv("H:/Rotation_Yang/CaseStudy/PM_AOD.csv")
+PMAOD <- read.csv("H:/Rotation_Yang/CaseStudy/PM_AOD.csv")
 
 # Run model for each AOD type, QAC 1+2+3, and QAC 3 only
+DT3 <- fitted(lme(X24hrPM ~ DT3, data=PMAOD, random=~DT3|Date, na.action=na.omit))
+summary(lm(DT3~na.exclude(PMAOD[,c("Date", "DT3", "X24hrPM")])[,3]))
+DTavg1 <- fitted(lme(X24hrPM ~ DTavg1, data=PMAOD, random=~DTavg1|Date, na.action=na.omit))
+summary(lm(DTavg1~na.exclude(PMAOD[,c("Date", "DTavg1", "X24hrPM")])[,3]))
+DTavg2 <- fitted(lme(X24hrPM ~ DTavg2, data=PMAOD, random=~DTavg2|Date, na.action=na.omit))
+summary(lm(DTavg2~na.exclude(PMAOD[,c("Date", "DTavg2", "X24hrPM")])[,3]))
 
+DB3 <- fitted(lme(X24hrPM ~ DB3, data=PMAOD, random=~DB3|Date, na.action=na.omit))
+summary(lm(DB3~na.exclude(PMAOD[,c("Date", "DB3", "X24hrPM")])[,3]))
+DBavg1 <- fitted(lme(X24hrPM ~ DBavg1, data=PMAOD, random=~DBavg1|Date, na.action=na.omit))
+summary(lm(DBavg1~na.exclude(PMAOD[,c("Date", "DBavg1", "X24hrPM")])[,3]))
+DBavg2 <- fitted(lme(X24hrPM ~ DBavg2, data=PMAOD, random=~DBavg2|Date, na.action=na.omit))
+summary(lm(DBavg2~na.exclude(PMAOD[,c("Date", "DBavg2", "X24hrPM")])[,3]))
+
+B3 <- fitted(lme(X24hrPM ~ B3, data=PMAOD, random=~B3|Date, na.action=na.omit))
+summary(lm(B3~na.exclude(PMAOD[,c("Date", "B3", "X24hrPM")])[,3]))
+Bavg1 <- fitted(lme(X24hrPM ~ Bavg1, data=PMAOD, random=~Bavg1|Date, na.action=na.omit))
+summary(lm(Bavg1~na.exclude(PMAOD[,c("Date", "Bavg1", "X24hrPM")])[,3]))
+Bavg2 <- fitted(lme(X24hrPM ~ Bavg2, data=PMAOD, random=~Bavg2|Date, na.action=na.omit))
+summary(lm(Bavg2~na.exclude(PMAOD[,c("Date", "Bavg2", "X24hrPM")])[,3]))
+
+DT33km <- fitted(lme(X24hrPM ~ DT33km, data=PMAOD, random=~DT33km|Date, na.action=na.omit))
+summary(lm(DT33km~na.exclude(PMAOD[,c("Date", "DT33km", "X24hrPM")])[,3]))
+DTavg13km <- fitted(lme(X24hrPM ~ DTavg13km, data=PMAOD, random=~DTavg13km|Date, na.action=na.omit))
+summary(lm(DTavg13km~na.exclude(PMAOD[,c("Date", "DTavg13km", "X24hrPM")])[,3]))
+DTavg23km <- fitted(lme(X24hrPM ~ DTavg23km, data=PMAOD, random=~DTavg23km|Date, na.action=na.omit))
+summary(lm(DTavg23km~na.exclude(PMAOD[,c("Date", "DTavg23km", "X24hrPM")])[,3]))
+
+# Need angles; tcpw; ndvi at each CMAQ cell
+# For angles can use gridding results to join
+# For NDVI and TCPW do direct matching within CMAQ cell boundaries (rough) off of coordinates and take median
+# Land use has already been joined to CMAQ, just need to find the layer and add back in
+
+# Get polygon rings - read in pre-preppped polygon file from Arc - only polygons used in analysis selected and included in layer (Arc is better at working with large quantities of polygons)
+library(rgdal)
+CMAQ_polys <- readOGR("T:/eohprojs/CDC_climatechange/Jess/ValidationPaperRewrite/GISlayers/CaseStudy_CMAQcellsProj.shp", "CaseStudy_CMAQcellsProj")
+# This is a clumsy way to do this, but I hate dealing with lapply when the query is this complicated and the coordinates function only extracts midpoints
+Lbounds <- rep(NA, 19)
+Rbounds <- rep(NA, 19)
+Ubounds <- rep(NA, 19)
+Lowbounds <- rep(NA, 19)
+for (i in seq(1, 19)){
+  Lbounds[i] <- min(CMAQ_polys@polygons[[i]]@Polygons[[1]]@coords[,1])
+  Rbounds[i] <- max(CMAQ_polys@polygons[[i]]@Polygons[[1]]@coords[,1])
+  Lowbounds[i] <- min(CMAQ_polys@polygons[[i]]@Polygons[[1]]@coords[,2])
+  Ubounds[i] <- max(CMAQ_polys@polygons[[i]]@Polygons[[1]]@coords[,2])
+}
+CMAQ_polys@data <- cbind.data.frame(CMAQ_polys@data, Lbounds, Rbounds, Lowbounds, Ubounds)
+
+# Land use
+Landuse <- read.csv("H:/Rotation_Yang/CaseStudy/CMAQ_Alldata.csv")
+CMAQ_polys@data <- merge(CMAQ_polys@data, Landuse)
+
+# Merge CMAQ polygon definitions back to PMAOD
+PMAOD2 <- merge(PMAOD, CMAQ_polys@data, by="Input_FID")
