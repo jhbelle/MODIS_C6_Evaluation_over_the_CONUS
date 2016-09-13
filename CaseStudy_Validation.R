@@ -129,3 +129,6 @@ CMAQ_polys@data <- merge(CMAQ_polys@data, Landuse)
 
 # Merge CMAQ polygon definitions back to PMAOD
 PMAOD2 <- merge(PMAOD, CMAQ_polys@data, by="Input_FID")
+
+# Write csv
+write.csv(PMAOD2, "H:/Rotation_Yang/CaseStudy/PMAODLandPBounds.csv")
