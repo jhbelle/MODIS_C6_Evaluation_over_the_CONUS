@@ -16,8 +16,8 @@
 % Change these parameters!!!!
 % -----------------------
 Pixelsfile = '/aqua/Jess/Data/PBounds.csv';
-FPath = '/terra/MODIS_Jess/MODIS10kmData/Raw/';
-OutpFile = '/aqua/Jess/Data/MODISExCaseStudyAngles.csv';
+FPath = '/terra/MODIS_Jess/MODISTCPW/Raw/';
+OutpFile = '/aqua/Jess/Data/MODISExCaseStudyTCPW.csv';
 % -----------------------
 
 
@@ -26,8 +26,8 @@ Pixels = fopen(Pixelsfile);
 formatspec = '%f %f %f %f %f %f %f';
 Pixels2 = textscan(Pixels, formatspec, 'delimiter', ',', 'treatAsEmpty', 'NA', 'HeaderLines', 1);
 Outp = fopen(OutpFile, 'w');
-Varnames = {'Input_FID', 'Year', 'JulianDate', 'SolarZenith', 'SensorZenith', 'Scatter'};
-formatHeader = '%s, %s, %s, %s, %s, %s\n';
+Varnames = {'Input_FID', 'Year', 'JulianDate', 'TCPW'};
+formatHeader = '%s, %s, %s, %s\n';
 fprintf(Outp, formatHeader, Varnames{1,:});
 
 for i=1:length(Pixels2{1})
@@ -38,7 +38,7 @@ for i=1:length(Pixels2{1})
     Rbound = Pixels2{3}(i);
     Lowbound = Pixels2{4}(i);
     Ubound = Pixels2{5}(i);
-    Files = dir(sprintf('%sMYD04_L2.A%u%s.*.006.*.hdf', FPath, Year, JulDay));
+    Files = dir(sprintf('%sMYD05_L2.A%u%s.*.006.*.hdf', FPath, Year, JulDay));
     for j=1:length(Files)
         filen = strcat(FPath, Files(j).name);
         fileinfo=hdfinfo(filen, 'eos');
@@ -47,14 +47,11 @@ for i=1:length(Pixels2{1})
         Long=hdfread(filen, swathname, 'Fields', 'Longitude');
         Mask = find((Lat < Ubound & Lat > Lowbound & Long > Lbound & Long < Rbound));
         if length(Mask) > 0
-            SolarZenith=hdfread(filen, swathname, 'Fields', 'Solar_Zenith');
-            SensorZenith= hdfread(filen, swathname, 'Fields', 'Sensor_Zenith');
-            Scatter = hdfread(filen, swathname, 'Fields', 'Scattering_Angle');
-            SolarZenithO = median(SolarZenith(Mask));
-            SensorZenithO = median(SensorZenith(Mask));
-            ScatterO = median(Scatter(Mask));
-            rowfile = {InputFID, Year, JulDay, SolarZenithO, SensorZenithO, ScatterO};
-            rowform = '%f, %f, %s, %f, %f, %f\n';
+            TCPW=hdfread(filen, swathname, 'Fields', 'Water_Vapor_Near_Infrared');
+	    TCPWvals = TCPW(Mask)
+            TCPW0 = median(TCPWvals(TCPWvals >= 0));
+            rowfile = {InputFID, Year, JulDay, TCPW0};
+            rowform = '%f, %f, %s, %f\n';
             fprintf(Outp, rowform, rowfile{1,:});
         end;
     end;

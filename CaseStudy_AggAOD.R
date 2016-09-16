@@ -19,9 +19,9 @@ AOD3kmLoc <- "/terra/MODIS_Jess/Daily_gridding3km/DailyGridAOD_" # File names fo
 DayAgg <- function(dat, LocationDat1=AOD10kmLoc, LocationDat2=AOD3kmLoc){
   AOD10km <- try(read.csv(paste(LocationDat1, dat$Date[1], ".csv", sep="")))
   if (is.data.frame(AOD10km)) {
-    AOD10km$DTavg1 <- rowMeans(AOD10km[,c("DT3", "DT2", "DT1")], na.rm=T)
-    AOD10km$DBavg1 <- rowMeans(AOD10km[,c("DB3", "DB2", "DB1")], na.rm=T)
-    AOD10km$Bavg1 <- rowMeans(AOD10km[,c("B3", "B2", "B1")], na.rm=T)
+    AOD10km$DTavg1 <-  ifelse(!is.na(AOD10km$DT3), 3, ifelse(!is.na(AOD10km$DT2), 2, 1))
+    AOD10km$DBavg1 <- ifelse(!is.na(AOD10km$DB3), 3, ifelse(!is.na(AOD10km$DB2), 2, 1))
+    AOD10km$Bavg1 <-  ifelse(!is.na(AOD10km$B3), 3, ifelse(!is.na(AOD10km$B2), 2, 1))
     AOD10km$DTavg2 <- ifelse(!is.na(AOD10km$DT3), AOD10km$DT3, ifelse(!is.na(AOD10km$DT2), AOD10km$DT2, AOD10km$DT1))
     AOD10km$DBavg2 <- ifelse(!is.na(AOD10km$DB3), AOD10km$DB3, ifelse(!is.na(AOD10km$DB2), AOD10km$DB2, AOD10km$DB1))
     AOD10km$Bavg2 <- ifelse(!is.na(AOD10km$B3), AOD10km$B3, ifelse(!is.na(AOD10km$B2), AOD10km$B2, AOD10km$B1))
@@ -62,4 +62,4 @@ library(plyr)
 PM_AOD <- ddply(Dat, .(Date), DayAgg)
 
 # Save results
-write.csv(PM_AOD, "/aqua/Jess/Data/PM_AOD.csv")
+write.csv(PM_AOD, "/aqua/Jess/Data/PM_AOD2.csv")
