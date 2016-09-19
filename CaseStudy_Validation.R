@@ -72,12 +72,13 @@ write.csv(Atl24, "H:/Rotation_Yang/CaseStudy/PM_DateInputFID.csv")
 
 # Get AOD values by product (3 + 1,2,3) for each CMAQ cell and day with a PM value
 PMAOD <- read.csv("H:/Rotation_Yang/CaseStudy/PM_AOD.csv")
-
+library(nlme)
 # Run model for each AOD type, QAC 1+2+3, and QAC 3 only
 DT3 <- fitted(lme(X24hrPM ~ DT3, data=PMAOD, random=~DT3|Date, na.action=na.omit))
 summary(lm(DT3~na.exclude(PMAOD[,c("Date", "DT3", "X24hrPM")])[,3]))
 DTavg1 <- fitted(lme(X24hrPM ~ DTavg1, data=PMAOD, random=~DTavg1|Date, na.action=na.omit))
 summary(lm(DTavg1~na.exclude(PMAOD[,c("Date", "DTavg1", "X24hrPM")])[,3]))
+#PMAOD <- subset(PMAOD, as.integer(as.character(as.Date(PMAOD$Date, "%Y_%j"), "%m")) < 12 & as.integer(as.character(as.Date(PMAOD$Date, "%Y_%j"), "%m")) > 8)
 DTavg2 <- fitted(lme(X24hrPM ~ DTavg2, data=PMAOD, random=~DTavg2|Date, na.action=na.omit))
 summary(lm(DTavg2~na.exclude(PMAOD[,c("Date", "DTavg2", "X24hrPM")])[,3]))
 
@@ -132,3 +133,135 @@ PMAOD2 <- merge(PMAOD, CMAQ_polys@data, by="Input_FID")
 
 # Write csv
 write.csv(PMAOD2, "H:/Rotation_Yang/CaseStudy/PMAODLandPBounds.csv")
+
+# NDVI, QAC codes, TCPW, and angle values were extracted from MODIS files on cluster using the scripts: CaseStudy_ExtractMODIS_Angles.m; CaseStudy_ExtractMODIS_NDVI.R; CaseStudy_ExtractMODIS_TCPW.m; CaseStudy_AggAOD.R
+# Read in new AOD file with QAC codes
+AODPM <- read.csv("H:/Rotation_Yang/CaseStudy/PM_AOD2.csv")
+AODPM$Date <- as.Date(AODPM$Date, "%Y_%j")
+# Read in Landcover values
+NLCD <- read.csv("H:/Rotation_Yang/CaseStudy/PMAODLandPBounds.csv")[,c(2,4,32)]
+NLCD$Date <- as.Date(NLCD$Date, "%Y_%j")
+AODPM <- merge(AODPM, NLCD, by=c("Input_FID", "Date"))
+# Read in NDVI file
+NDVI <- read.csv("H:/Rotation_Yang/CaseStudy/CaseStudy_NDVIvals.csv")
+# Scale values and format vars
+NDVI$NDVI <- NDVI$NDVI/10000.0
+NDVI$Date <- as.Date(sprintf("%d_%03d", NDVI$Year, NDVI$Jday), "%Y_%j")
+NDVI <- NDVI[,c(2,5:6)]
+# Match each date to the nearest NDVIDate
+AODPM$NDVI = rep(NA, length(AODPM$Date))
+for (i in 1:length(AODPM$Date)){
+  Date = AODPM$Date[i]
+  NDVIval = NDVI$NDVI[which.min(abs(NDVI$Date - Date))]
+  AODPM$NDVI[i] = NDVIval
+}
+# Read in TCPW file
+TCPW <- read.csv("H:/Rotation_Yang/CaseStudy/MODISExCaseStudyTCPW.csv")
+# Scale values and format vars
+TCPW$Date <- as.Date(sprintf("%d_%03d", TCPW$Year, TCPW$JulianDate), "%Y_%j")
+TCPW <- TCPW[,c(1,4,5)]
+TCPW$TCPW <- (TCPW$TCPW*0.0010000000474974513)
+# Merge to AODPM
+AODPM <- merge(AODPM, TCPW, by=c("Input_FID", "Date"))
+# Read in Angles file
+Angles <- read.csv("H:/Rotation_Yang/CaseStudy/MODISExCaseStudyAngles.csv")
+# Scale values and format vars
+Angles$Date <- as.Date(sprintf("%d_%03d", Angles$Year, Angles$JulianDate), "%Y_%j")
+Angles[,4:6] <- Angles[,4:6]*0.009999999776482582
+Scatter <- aggregate(Scatter ~ Input_FID + Date, Angles, median)
+SensorZenith <- aggregate(SensorZenith ~ Input_FID + Date, Angles, median)
+SolarZenith <- aggregate(SolarZenith ~ Input_FID + Date, Angles, median)
+Angles <- merge(Scatter, SensorZenith)
+Angles <- merge(Angles, SolarZenith)
+
+# Merge to AODPM
+AODPM <- merge(AODPM, Angles, by=c("Input_FID", "Date"))
+# Clean up workspace
+rm(NDVI, TCPW, Angles)
+gc()
+
+# Read in collocation datafile
+AllCollocs <- read.csv("H:/Rotation_Yang/AllCollocs.csv")
+AllCollocs <- subset(AllCollocs, AllCollocs$East == 1)
+# Filter data
+AllCollocs <- subset(AllCollocs, AllCollocs$Scatter <= 165 & AllCollocs$SolarZenith > 15)
+# Fit model
+# NLCD values aren't all represented in atlanta and most aren't relevant, trimming down to forest, other, developed
+AllCollocs$NLCD <- as.factor(ifelse(AllCollocs$NLCDMode > 20 & AllCollocs$NLCDMode < 25, "Dev", ifelse(AllCollocs$NLCDMode > 85 & AllCollocs$NLCDMode < 95, "Wet", "Other")))
+AllCollocs$QACcode <- as.factor(AllCollocs$QACcode)
+DT <- subset(AllCollocs, AllCollocs$Algorithm == "DT" & AllCollocs$Resolution == 10)
+DTM <- lm(AeroAOD ~ ModAOD + NLCD + SensorZenith + NDVI + AeroWatercm + QACcode, DT)
+summary(DTM)
+DB <- subset(AllCollocs, AllCollocs$Algorithm == "DB" & AllCollocs$Resolution == 10)
+DBM <- lm(AeroAOD ~ ModAOD + NLCD + SensorZenith + NDVI + AeroWatercm + QACcode, DB)
+summary(DBM)
+B <- subset(AllCollocs, AllCollocs$Algorithm == "B" & AllCollocs$Resolution == 10)
+BM <- lm(AeroAOD ~ ModAOD + NLCD + SensorZenith + NDVI + AeroWatercm + QACcode, B)
+summary(BM)
+DT3 <- subset(AllCollocs, AllCollocs$Algorithm == "DT" & AllCollocs$Resolution == 3)
+#DT3 <- subset(AllCollocs, AllCollocs$AeroLoc == "Walker_Branch" | AllCollocs$AeroLoc == "Georgia_Tech" | AllCollocs$AeroLoc == "SEARCH-Yorkville")
+DT3M <- lm(AeroAOD ~ ModAOD, DT3)
+summary(DT3M)
+rm(B, DB, DT, DT3)
+
+# Apply filter to case study data
+AODPM2 <- subset(AODPM, AODPM$Scatter <= 165 & AODPM$SolarZenith > 15)
+#AODPM2 <- AODPM
+# Calculate percentage of observations lost to filtering
+1-nrow(AODPM2)/nrow(AODPM)
+# Reformat landcover
+AODPM2$NLCD <- as.factor(ifelse(AODPM2$Landcover > 20 & AODPM2$Landcover < 25, "Dev", ifelse(AODPM2$Landcover > 85 & AODPM2$Landcover < 95, "Wet", "Other")))
+
+library(nlme)
+
+# 10km DT
+DT <- AODPM2[,c("Input_FID", "Date", "DTavg2", "NLCD", "SensorZenith", "NDVI", "TCPW", "DTavg1", "X24hrPM")]
+# Reformat QACcode
+DT$DTavg1 <- as.factor(DT$DTavg1)
+# Rename columns
+colnames(DT) <- c("Input_FID", "Date", "ModAOD", "NLCD", "SensorZenith", "NDVI", "AeroWatercm", "QACcode", "PM")
+DT <- subset(DT, as.integer(as.character(DT$Date, "%m")) < 12 & as.integer(as.character(DT$Date, "%m")) > 8)
+# Apply correction to case study data
+DT$FiltCorAOD <- predict(DTM, DT)
+# Fit lme
+DTlme <- fitted(lme(PM ~ FiltCorAOD, data=DT, random=~FiltCorAOD|Date, na.action=na.omit))
+summary(lm(DTlme~na.exclude(DT[,c("Date", "FiltCorAOD", "PM")])[,3]))
+
+# 10km DB
+DB <- AODPM2[,c("Input_FID", "Date", "DBavg2", "NLCD", "SensorZenith", "NDVI", "TCPW", "DBavg1", "X24hrPM")]
+# Reformat QACcode
+DB$DBavg1 <- as.factor(DB$DBavg1)
+# Rename columns
+colnames(DB) <- c("Input_FID", "Date", "ModAOD", "NLCD", "SensorZenith", "NDVI", "AeroWatercm", "QACcode", "PM")
+# Apply correction to case study data
+DB$FiltCorAOD <- predict(DBM, DB)
+# Fit lme
+DBlme <- fitted(lme(PM ~ FiltCorAOD, data=DB, random=~FiltCorAOD|Date, na.action=na.omit))
+summary(lm(DBlme~na.exclude(DB[,c("Date", "FiltCorAOD", "PM")])[,3]))
+
+# 10km B
+B <- AODPM2[,c("Input_FID", "Date", "Bavg2", "NLCD", "SensorZenith", "NDVI", "TCPW", "Bavg1", "X24hrPM")]
+# Reformat QACcode
+B$Bavg1 <- as.factor(B$Bavg1)
+# Rename columns
+colnames(B) <- c("Input_FID", "Date", "ModAOD", "NLCD", "SensorZenith", "NDVI", "AeroWatercm", "QACcode", "PM")
+# Apply correction to case study data
+B$FiltCorAOD <- predict(BM, B)
+# Fit lme
+Blme <- fitted(lme(PM ~ FiltCorAOD, data=B, random=~FiltCorAOD|Date, na.action=na.omit))
+summary(lm(Blme~na.exclude(B[,c("Date", "FiltCorAOD", "PM")])[,3]))
+
+# 3km DT
+DT3 <- AODPM2[,c("Input_FID", "Date", "DTavg23km", "NLCD", "SensorZenith", "Scatter", "SolarZenith", "NDVI", "TCPW", "DTavg13km", "X24hrPM")]
+# Reformat QACcode
+DT3$DTavg13km <- as.factor(DT3$DTavg13km)
+# Rename columns
+colnames(DT3) <- c("Input_FID", "Date", "ModAOD", "NLCD", "SensorZenith", "Scatter", "SolarZenith", "NDVI", "AeroWatercm", "QACcode", "PM")
+# Apply correction to case study data
+DT3$FiltCorAOD <- predict(DT3M, DT3)
+# Fit lme
+DT3lme <- fitted(lme(PM ~ FiltCorAOD, data=DT3, random=~FiltCorAOD|Date, na.action=na.omit))
+summary(lm(DT3lme~na.exclude(DT3[,c("Date", "FiltCorAOD", "PM")])[,3]))
+
+DTavg23km <- fitted(lme(PM ~ ModAOD + NLCD + AeroWatercm + NDVI, data=DT3, random=~ModAOD|Date, na.action=na.omit))
+summary(lm(DTavg23km~na.exclude(DT3[,c("Date", "ModAOD", "PM")])[,3]))
